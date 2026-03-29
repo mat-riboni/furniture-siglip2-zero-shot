@@ -1,0 +1,34 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: upcycling_vector_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - upcycling_net
+
+  app:
+    build: .
+    container_name: upcycling_web_app
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - upcycling_net
+
+volumes:
+  pgdata:
+
+
+networks:
+  upcycling_net:
+    driver: bridge
