@@ -11,10 +11,8 @@ from gradio_client import Client, handle_file
 import torch
 from transformers import AutoProcessor, AutoModel
 
-# Deve essere identica a quella del builder!
 CANDIDATE_LABELS = ["chair", "table", "dresser", "wardrobe", "bed", "sofa", "desk", "nightstand", "armchair"]
-# Versione "umana" per la UI (opzionale)
-LABELS_ITA = {
+ìLABELS_ITA = {
     "chair": "Sedia", "table": "Tavolo", "dresser": "Cassettiera", 
     "wardrobe": "Armadio", "bed": "Letto", "sofa": "Divano", 
     "desk": "Scrivania", "nightstand": "Comodino", "armchair": "Poltrona"
@@ -22,8 +20,6 @@ LABELS_ITA = {
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Ottimizzazione per Docker: usa tutti i 10 core assegnati per l'inferenza CPU
-torch.set_num_threads(10)
 
 SPACE_ID = os.getenv("SPACE_ID")
 
@@ -37,7 +33,6 @@ dataset_originale = load_hf_dataset()
 
 @st.cache_resource
 def load_local_model():
-    # Rilevamento hardware (MPS per Mac, CUDA per GPU, CPU per Docker)
     if torch.cuda.is_available():
         device = torch.device("cuda")
     elif torch.backends.mps.is_available():
@@ -45,11 +40,9 @@ def load_local_model():
     else:
         device = torch.device("cpu")
         
-    # Usiamo il NUOVO modello SigLIP 2
     model_id = "google/siglip2-base-patch16-224"
     processor = AutoProcessor.from_pretrained(model_id)
     
-    # Caricamento ottimizzato
     model = AutoModel.from_pretrained(model_id).to(device)
     model.eval()
     
@@ -65,7 +58,6 @@ def estrai_embedding_locale(image_bytes):
         with torch.no_grad():
             outputs = model.get_image_features(**inputs)
             
-        # Gestione robusta dell'output di SigLIP 2
         if hasattr(outputs, "pooler_output") and outputs.pooler_output is not None:
             image_features = outputs.pooler_output
         elif isinstance(outputs, torch.Tensor):
@@ -73,7 +65,6 @@ def estrai_embedding_locale(image_bytes):
         else:
             image_features = outputs[0] 
             
-        # Normalizzazione L2 (essenziale per la ricerca vettoriale)
         image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
         
         return image_features[0].cpu().tolist()
@@ -89,7 +80,6 @@ def query_huggingface_api(image_bytes):
             tmp.write(image_bytes)
             tmp_path = tmp.name
         
-        # Chiamata posizionale per evitare errori di api_name
         result = hf_space_client.predict(
             handle_file(tmp_path),
             fn_index=0
@@ -126,7 +116,6 @@ if uploaded_file is not None:
                 vettore = query_huggingface_api(img_bytes)
         
         if vettore is not None:
-            # Pulizia del vettore se arriva come lista di liste (comune con Gradio)
             if isinstance(vettore, list) and len(vettore) > 0:
                 if isinstance(vettore[0], list):
                     vettore = vettore[0]
@@ -142,7 +131,6 @@ if uploaded_file is not None:
                 register_vector(conn)
                 cursor = conn.cursor()
                 
-                # QUERY OTTIMIZZATA: Distanza Coseno (<=>) e Cast esplicito (::vector)
                 cursor.execute("""
                     SELECT nome_file, materiali, (embedding <=> %s::vector) AS distance 
                     FROM progetti_restauro 
@@ -155,13 +143,10 @@ if uploaded_file is not None:
 
                 st.subheader("Mobili simili trovati:")
                 cols = st.columns(5)
-                # Nell'app.py, dentro il ciclo dei risultati
                 for idx, (nome_file, materiali, dist) in enumerate(risultati):
                     try:
-                        # nome_file ora contiene solo il numero (es: "123")
                         id_img = int(nome_file) 
                         with cols[idx]:
-                            # Mostriamo l'immagine prendendola DIRETTAMENTE dal dataset con quell'ID
                             st.image(dataset_originale[id_img]['image'], use_container_width=True)
                             st.caption(f"Distanza: {dist:.3f}")
                     except Exception as e:
