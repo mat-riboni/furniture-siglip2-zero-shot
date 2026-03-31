@@ -2,6 +2,8 @@
 
 This repository contains a Streamlit-based web application containerized with Docker, designed for visual search of furniture (ideal for upcycling and restoration projects). The system leverages Google's SigLIP 2 vision-language model to extract image embeddings and integrates with PostgreSQL and pgvector to perform real-time similarity searches.
 
+*Note: Remote connection to Hugging Face API is made for a docker application on Hugging Face Spaces to the endpoint /extract which is not provided by me.*
+
 ## Core Features
 
 1. **Image Analysis:** Users upload an image of a piece of furniture. The application uses the SigLIP 2 model to generate a vector embedding of the image.

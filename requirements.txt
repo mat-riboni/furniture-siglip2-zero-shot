@@ -6,7 +6,6 @@ datasets
 pillow
 python-dotenv
 huggingface-hub
-gradio_client
 transformers>=4.49.0
 torch
 sentencepiece

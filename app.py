@@ -5,9 +5,8 @@ from PIL import Image
 import os
 import io
 import re
-import tempfile 
 from datasets import load_dataset
-from gradio_client import Client, handle_file
+import requests
 import torch
 from transformers import AutoProcessor, AutoModel
 
@@ -74,27 +73,28 @@ def estrai_embedding_locale(image_bytes):
 
 def query_huggingface_api(image_bytes):
     try:
-        hf_space_client = Client(SPACE_ID, HF_TOKEN)
+        domain = SPACE_ID.replace("/", "-")
+        api_url = f"https://{domain}.hf.space/extract"
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-            tmp.write(image_bytes)
-            tmp_path = tmp.name
+        files = {"file": ("image.jpg", image_bytes, "image/jpeg")}
         
-        result = hf_space_client.predict(
-            handle_file(tmp_path),
-            fn_index=0
-        )
+        headers = {}
+        if HF_TOKEN:
+            headers["Authorization"] = f"Bearer {HF_TOKEN}"
+        response = requests.post(api_url, files=files, headers=headers)        
+        response.raise_for_status()
+        risultato_json = response.json()
+        return risultato_json.get("embedding")
         
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-            
-        return result
+    except requests.exceptions.RequestException as e:
+        st.error(f"Errore di connessione all'API remota: {e}")
+        return None
     except Exception as e:
-        st.error(f"Errore remoto: {e}")
+        st.error(f"Errore nell'elaborazione della risposta remota: {e}")
         return None
 
 st.title("Upcycling Furniture Search")
-usa_locale = st.toggle("Usa modello in locale (Docker)", value=True)
+usa_locale = st.toggle("Usa modello in locale (Docker)", value=False)
 
 uploaded_file = st.file_uploader("Carica un mobile", type=["jpg", "png"])
 
@@ -109,7 +109,7 @@ if uploaded_file is not None:
     st.image(img, width=300)
 
     if st.button("Trova Mobili Simili"):
-        with st.spinner("L'intelligenza artificiale sta analizzando l'immagine..."):
+        with st.spinner("Analizzando l'immagine..."):
             if usa_locale:
                 vettore = estrai_embedding_locale(img_bytes)
             else:
